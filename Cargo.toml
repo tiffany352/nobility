@@ -1,6 +1,11 @@
 [package]
 name = "nobility"
 version = "0.1.0"
+authors = ["Tiffany Bennett <tiffany@stormbit.net>"]
+description = "NBT decoder"
+readme = "README.md"
+keywords = ["nbt", "minecraft"]
+license = "zlib"
 
 [dependencies]
 byteorder = "*"
