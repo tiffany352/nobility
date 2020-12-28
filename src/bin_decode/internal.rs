@@ -1,4 +1,4 @@
-use crate::parser::ParseError;
+use crate::bin_decode::ParseError;
 use byteorder::{BigEndian, ByteOrder};
 
 pub trait NbtParse<'a>: Sized {

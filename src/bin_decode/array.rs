@@ -1,4 +1,4 @@
-use crate::parser::{NbtParse, ParseError, Reader};
+use crate::bin_decode::{NbtParse, ParseError, Reader};
 use byteorder::{BigEndian, ByteOrder};
 use core::marker::PhantomData;
 use std::fmt;
@@ -60,10 +60,13 @@ impl<'a, T> NbtArray<'a, T>
 where
     T: NbtPrimitive,
 {
+    /// Returns the number of elements in the array.
     pub fn len(&self) -> usize {
         self.data.len() / T::SIZE
     }
 
+    /// Returns an element at the index if it's in the range 0..len(),
+    /// or None.
     pub fn get(&self, index: usize) -> Option<T> {
         if index < self.len() {
             let start = index * T::SIZE;
@@ -73,6 +76,7 @@ where
         }
     }
 
+    /// Creates a Vec of the contents of this array.
     pub fn to_vec(&self) -> Vec<T> {
         let mut v = vec![];
         v.reserve(self.len());
@@ -82,6 +86,7 @@ where
         v
     }
 
+    /// Returns an iterator over the elements of the array.
     pub fn iter(&self) -> NbtArrayIter<'a, T> {
         NbtArrayIter {
             array: *self,
@@ -101,6 +106,7 @@ where
     }
 }
 
+/// Iterator over the contents of [NbtArray], yielding the element type.
 pub struct NbtArrayIter<'a, T> {
     array: NbtArray<'a, T>,
     index: usize,
@@ -119,5 +125,7 @@ where
     }
 }
 
+/// TAG_Int_Array, represented using [NbtArray].
 pub type IntArray<'a> = NbtArray<'a, i32>;
+/// TAG_Long_Array, represented using [NbtArray].
 pub type LongArray<'a> = NbtArray<'a, i64>;

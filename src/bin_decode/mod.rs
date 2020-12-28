@@ -1,3 +1,12 @@
+//! Decoder for the NBT binary format. This module is based around the
+//! idea that you won't store the objects, instead they will be walked
+//! through to build up some other data structure.
+//!
+//! As a result, almost all of the types here use borrows into the
+//! original data buffer, rather than copying into a Vec. The main
+//! exception is bookkeeping where necessary, such as when parsing
+//! Compound tags.
+
 use crate::TagType;
 use byteorder::{BigEndian, ByteOrder};
 use flate2::read::GzDecoder;
@@ -10,11 +19,13 @@ mod internal;
 mod list;
 mod string;
 
-pub use array::IntArray;
-pub use array::LongArray;
-pub use compound::Compound;
+pub use array::{IntArray, LongArray, NbtArray, NbtArrayIter};
+pub use compound::{Compound, Entry};
 pub(crate) use internal::{NbtParse, Reader};
-pub use list::List;
+pub use list::{
+    ByteArrayList, CompoundList, DoubleList, FloatList, IntArrayList, IntList, List, ListIter,
+    ListList, LongArrayList, LongList, NbtList, ShortList, StringList,
+};
 pub use string::NbtString;
 
 /// Failures which can occur while parsing an NBT document.
@@ -53,19 +64,34 @@ pub enum ParseError {
     IncorrectStartTag { tag: u8 },
 }
 
+/// Representation for all values that a tag can be.
 #[derive(Clone, Debug)]
 pub enum Tag<'a> {
-    Byte(u8),
+    /// A small i8 integer.
+    Byte(i8),
+    /// An i16 integer.
     Short(i16),
+    /// An i32 integer.
     Int(i32),
+    /// An i64 integer.
     Long(i64),
+    /// An f32 number.
     Float(f32),
+    /// An f64 number.
     Double(f64),
+    /// An array of raw bytes.
     ByteArray(&'a [u8]),
+    /// A string containing CESU-8 encoded text.
     String(NbtString<'a>),
+    /// An array of i32.
     IntArray(IntArray<'a>),
+    /// An array of i64.
     LongArray(LongArray<'a>),
+    /// An array which can only contain a single type. The type can be
+    /// any tag, including a nested list. When lists are nested, the
+    /// inner lists do not have to be the same type.
     List(List<'a>),
+    /// A list of key/value pairs, creating a dictionary.
     Compound(Compound<'a>),
 }
 
@@ -73,7 +99,7 @@ impl<'a> Tag<'a> {
     pub(crate) fn read(tag: TagType, reader: &mut Reader<'a>) -> Result<Tag<'a>, ParseError> {
         match tag {
             TagType::End => Err(ParseError::UnexpectedEndTag),
-            TagType::Byte => Ok(Tag::Byte(reader.advance(1)?[0])),
+            TagType::Byte => Ok(Tag::Byte(reader.advance(1)?[0] as i8)),
             TagType::Short => Ok(Tag::Short(BigEndian::read_i16(reader.advance(2)?))),
             TagType::Int => Ok(Tag::Int(BigEndian::read_i32(reader.advance(4)?))),
             TagType::Long => Ok(Tag::Long(BigEndian::read_i64(reader.advance(8)?))),
@@ -123,11 +149,16 @@ fn read_byte_array<'a>(reader: &mut Reader<'a>) -> Result<&'a [u8], ParseError> 
     Ok(reader.advance(len as usize)?)
 }
 
+/// Represents an NBT document and is the owner of the data contained in
+/// it. All other decoder types are borrows of the data stored in this.
 pub struct Document {
     data: Vec<u8>,
 }
 
 impl Document {
+    /// Loads a document from any source implementing Read. Sources that
+    /// are compressed with gzip will be automatically decompressed,
+    /// otherwise the data will just be copied.
     pub fn load<R: Read + Clone>(mut input: R) -> Result<Document, IoError> {
         let mut decoder = GzDecoder::new(input.clone());
         let mut data = vec![];
@@ -141,6 +172,7 @@ impl Document {
         Ok(Document { data })
     }
 
+    /// Parses the document and returns the name and contents of the root tag.
     pub fn parse<'a>(&'a self) -> Result<(NbtString<'a>, Compound<'a>), ParseError> {
         let mut reader = Reader::new(&self.data);
         let tag = read_type(&mut reader)?;

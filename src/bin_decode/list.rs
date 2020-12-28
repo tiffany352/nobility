@@ -1,6 +1,6 @@
-use crate::parser::array::{IntArray, LongArray, NbtArray};
-use crate::parser::Tag;
-use crate::parser::{
+use crate::bin_decode::array::{IntArray, LongArray, NbtArray};
+use crate::bin_decode::Tag;
+use crate::bin_decode::{
     read_byte_array, read_type, Compound, NbtParse, NbtString, ParseError, Reader,
 };
 use crate::TagType;
@@ -10,6 +10,7 @@ use core::ops::Index;
 use core::slice::Iter as SliceIter;
 use std::fmt;
 
+/// Implementation for lists whose elements do not have a fixed size.
 #[derive(Clone)]
 pub struct NbtList<T> {
     entries: Vec<T>,
@@ -31,18 +32,22 @@ where
 }
 
 impl<T> NbtList<T> {
+    /// Returns the number of elements in the list.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// If len() > index >= 0, returns Some, otherwise returns None.
     pub fn get(&self, index: usize) -> Option<&T> {
         self.entries.get(index)
     }
 
+    /// Converts into the underlying vector.
     pub fn into_vec(self) -> Vec<T> {
         self.entries
     }
 
+    /// Returns an iterator over the elements of the list.
     pub fn iter(&self) -> SliceIter<T> {
         self.entries.iter()
     }
@@ -76,20 +81,33 @@ where
 }
 
 // Complex lists
+/// A TAG_List of TAG_Compound.
 pub type CompoundList<'a> = NbtList<Compound<'a>>;
+/// A TAG_List of TAG_String.
 pub type StringList<'a> = NbtList<NbtString<'a>>;
+/// A TAG_List of TAG_List. This is a nested list. The inner lists can
+/// each have distinct element types.
 pub type ListList<'a> = NbtList<List<'a>>;
+/// A TAG_List of TAG_Int_Array.
 pub type IntArrayList<'a> = NbtList<IntArray<'a>>;
+/// A TAG_List of TAG_Long_Array.
 pub type LongArrayList<'a> = NbtList<LongArray<'a>>;
+/// A TAG_List of TAG_Byte_Array.
 pub type ByteArrayList<'a> = NbtList<&'a [u8]>;
 
 // Primitive lists
+/// A TAG_List of TAG_Short.
 pub type ShortList<'a> = NbtArray<'a, i16>;
+/// A TAG_List of TAG_Int.
 pub type IntList<'a> = NbtArray<'a, i32>;
+/// A TAG_List of TAG_Long.
 pub type LongList<'a> = NbtArray<'a, i64>;
+/// A TAG_List of TAG_Float.
 pub type FloatList<'a> = NbtArray<'a, f32>;
+/// A TAG_List of TAG_Double.
 pub type DoubleList<'a> = NbtArray<'a, f64>;
 
+/// An enum that represents all possible list types.
 #[derive(Clone, Debug)]
 pub enum List<'a> {
     Byte(&'a [u8]),
@@ -139,6 +157,7 @@ impl<'a> NbtParse<'a> for List<'a> {
 }
 
 impl<'a> List<'a> {
+    /// Returns the number of elements in the list.
     pub fn len(&self) -> usize {
         match self {
             List::Byte(list) => list.len(),
@@ -156,9 +175,14 @@ impl<'a> List<'a> {
         }
     }
 
+    /// Allows the list to be indexed without creating a case for each
+    /// possible list type. The return value is wrapped in a Tag.
+    ///
+    /// Note that for complex lists, a clone will be performed. This
+    /// happens for Compound, Int Array, and Long Array lists.
     pub fn get(&self, index: usize) -> Option<Tag<'a>> {
         match self {
-            List::Byte(list) => list.get(index).map(|&v| Tag::Byte(v)),
+            List::Byte(list) => list.get(index).map(|&v| Tag::Byte(v as i8)),
             List::Short(list) => list.get(index).map(Tag::Short),
             List::Int(list) => list.get(index).map(Tag::Int),
             List::Long(list) => list.get(index).map(Tag::Long),
@@ -173,6 +197,7 @@ impl<'a> List<'a> {
         }
     }
 
+    /// Returns an iterator over the elements of the list, yielding a Tag.
     pub fn iter(&self) -> ListIter<'_> {
         ListIter {
             list: self,
@@ -181,6 +206,7 @@ impl<'a> List<'a> {
     }
 }
 
+/// Iterator over the contents of [List], wrapped as a [Tag].
 pub struct ListIter<'a> {
     list: &'a List<'a>,
     index: usize,

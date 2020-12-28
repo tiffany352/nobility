@@ -1,4 +1,4 @@
-use nobility::parser::Document;
+use nobility::nbt_decode::Document;
 
 #[test]
 pub fn decode_hello_world() {

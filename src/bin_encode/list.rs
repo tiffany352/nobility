@@ -2,6 +2,11 @@ use crate::bin_encode::{CompoundWriter, NbtWriter};
 use crate::TagType;
 use byteorder::{BigEndian, ByteOrder};
 
+/// A builder for a TAG_List of [TAG_Compounds][CompoundWriter].
+///
+/// # Panics
+///
+/// This object will panic on drop if finish() is not called.
 pub struct CompoundListWriter<'a> {
     writer: &'a mut NbtWriter,
     start_offset: usize,
@@ -22,11 +27,16 @@ impl<'a> CompoundListWriter<'a> {
         }
     }
 
+    /// Start a new element in the list, returning a CompoundWriter to
+    /// build it. `finish` must be called on the builder before
+    /// additional elements can be added.
     pub fn element<'b>(&'b mut self) -> CompoundWriter<'b> {
         self.length += 1;
         CompoundWriter::new(self.writer)
     }
 
+    /// Must be called before the builder goes out of scope, otherwise
+    /// an invalid NBT document would be generated.
     pub fn finish(mut self) {
         self.done = true;
         let mut bytes = [0, 0, 0, 0];

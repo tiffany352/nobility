@@ -1,3 +1,7 @@
+//! Encoder for the NBT binary format. This is based on builder objects
+//! rather than taking a document structure, so very few allocations are
+//! required other than the actual data buffer being written into.
+
 use crate::TagType;
 use byteorder::{BigEndian, ByteOrder};
 use cesu8::to_java_cesu8;
@@ -10,12 +14,15 @@ pub use compound::CompoundWriter;
 pub use list::CompoundListWriter;
 pub use tag::TagWriter;
 
+/// This object owns the buffer that the NBT is being written into. It
+/// represents one document.
 pub struct NbtWriter {
     output: Vec<u8>,
     done: bool,
 }
 
 impl NbtWriter {
+    /// Creates a new empty writer.
     pub fn new() -> NbtWriter {
         NbtWriter {
             output: vec![],
@@ -23,6 +30,8 @@ impl NbtWriter {
         }
     }
 
+    /// Creates the root tag with the given name and returns a builder
+    /// for it.
     pub fn root<'a>(&'a mut self, name: &str) -> CompoundWriter<'a> {
         self.done = true;
         self.write_tag(TagType::Compound);
@@ -30,6 +39,12 @@ impl NbtWriter {
         CompoundWriter::new(self)
     }
 
+    /// Finalizes the NBT document and returns the buffer for use.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if root() was never called, as this would
+    /// result in an invalid document.
     pub fn finish(self) -> Vec<u8> {
         if !self.done {
             panic!();

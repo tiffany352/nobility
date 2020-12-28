@@ -1,13 +1,17 @@
-use crate::parser::{NbtParse, ParseError, Reader};
+use crate::bin_decode::{NbtParse, ParseError, Reader};
 use byteorder::{BigEndian, ByteOrder};
 use cesu8::{from_java_cesu8, Cesu8DecodingError};
 use std::borrow::Cow;
 use std::fmt;
 
-/// NBT stores strings in a format called ["Modified UTF-8"][1], which
-/// requires some special handling.
+/// NBT stores strings in Java's modified version of [CESU-8][2] called
+/// ["Modified UTF-8"][1]. As a result, documents can't be decoded into
+/// &str references in all cases. This type stores a reference to a
+/// potentially invalid string in this format.
 ///
-/// [1]: https://docs.oracle.com/javase/8/docs/api/java/io/DataInput.html#modified-utf-8
+/// [1]:
+/// https://docs.oracle.com/javase/8/docs/api/java/io/DataInput.html#modified-utf-8
+/// [2]: https://en.wikipedia.org/wiki/CESU-8
 #[derive(Copy, Clone)]
 pub struct NbtString<'a> {
     data: &'a [u8],
@@ -22,6 +26,9 @@ impl<'a> NbtParse<'a> for NbtString<'a> {
 }
 
 impl<'a> NbtString<'a> {
+    /// Attempts to parse the string into UTF-8 using the cesu8 crate.
+    /// An error will be returned if this fails, which should only
+    /// happen if the data contained is invalid CESU-8.
     pub fn decode(&self) -> Result<Cow<str>, Cesu8DecodingError> {
         from_java_cesu8(self.data)
     }

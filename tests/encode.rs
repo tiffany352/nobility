@@ -1,7 +1,5 @@
 use flate2::read::GzDecoder;
 use nobility::bin_encode::NbtWriter;
-use std::fs::File;
-use std::io::prelude::*;
 use std::io::Read;
 
 #[test]
