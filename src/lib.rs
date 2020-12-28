@@ -3,6 +3,7 @@
 //! Currently only supports decoding into a tag tree. In the future,
 //! this may support encoding and zero-allocation decoding.
 
+pub mod bin_encode;
 pub mod parser;
 
 /// NBT tags are a 1-byte value used to specify which type is going to
