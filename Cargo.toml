@@ -8,4 +8,4 @@ keywords = ["nbt", "minecraft"]
 license = "zlib"
 
 [dependencies]
-byteorder = "0.3"
+byteorder = "1.3.4"
