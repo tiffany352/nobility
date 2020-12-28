@@ -1,26 +1,58 @@
-# NoBiliTy
+# Nobility
 
-NBT decoding library in Rust.
+Nobility is a Rust crate for encoding and decoding NBT, which is a
+format used by Minecraft: Java Edition.
 
-# License
+Features:
 
-Copyright 2015 Tiffany Bennett.
+- Decoder which creates few memory allocations
+- Encoder that uses builders instead of heap allocated objects
+- Supports TAG_Long_Array, added in Minecraft 1.12 (all tags as of
+  2020).
+- Can encode and decode test files correctly (e.g. bigtest.nbt).
+- Supports the Java variant of CESU-8 used for encoding text.
+- Zero usage of `unsafe`.
 
-This software is provided 'as-is', without any express or implied
-warranty. In no event will the authors be held liable for any damages
-arising from the use of this software.
+This library is based on the spec at
+<https://wiki.vg/NBT#Specification>.
 
-Permission is granted to anyone to use this software for any purpose,
-including commercial applications, and to alter it and redistribute it
-freely, subject to the following restrictions:
+Missing features:
 
-1. The origin of this software must not be misrepresented; you must
-   not claim that you wrote the original software. If you use this
-   software in a product, an acknowledgment in the product
-   documentation would be appreciated but is not required.
+- Serde support. Ran into lifetime issues.
+- CJSON support. Not yet implemented.
+- Bedrock edition support. The format used there is different.
+- Roundtrip encode/decode, as the encoder and decoder use different
+  types.
 
-2. Altered source versions must be plainly marked as such, and must
-   not be misrepresented as being the original software.
+## Decoding
 
-3. This notice may not be removed or altered from any source
-   distribution.
+```rust
+let mut file = File::open("hello_world.nbt").unwrap();
+let mut data = vec![];
+file.read_to_end(&mut data).unwrap();
+let cursor = std::io::Cursor::new(data);
+
+// Load the document. This step either copies the data (plaintext)
+// or decompresses it (gzip).
+let doc = Document::load(cursor).unwrap();
+// Parses the document. This returns the root tag's name, and the
+// root tag (always a Compound tag). Both of these are borrowing the
+// data inside the Document.
+let (name, root) = doc.parse().unwrap();
+
+println!("name: {}", name.decode().unwrap());
+println!("{:#?}", root);
+```
+
+## Encoding
+
+```rust
+let mut writer = NbtWriter::new();
+
+let mut root = writer.root("hello world");
+root.field("name").string("Bananrama");
+// finish() call is required.
+root.finish();
+
+let result: Vec<u8> = writer.finish();
+```

@@ -1,6 +1,6 @@
 [package]
 name = "nobility"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Tiffany Bennett"]
 description = "NBT decoder"
 readme = "README.md"
