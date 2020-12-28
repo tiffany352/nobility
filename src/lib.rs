@@ -254,57 +254,59 @@ fn decode_value<'a>(tag: TagType, reader: &mut Reader<'a>) -> Result<Tag<'a>, Er
         TagType::End => Err(Error::UnexpectedEndTag),
         TagType::Byte => reader.advance(1).map(|b| Tag::Byte(b[0] as i8)),
         TagType::Short => reader.advance(2).and_then(|mut v| {
-            Ok(Tag::Short(try!(v
-                .read_i16::<BigEndian>()
-                .map_err(Error::ByteOrderError))))
+            Ok(Tag::Short(
+                v.read_i16::<BigEndian>().map_err(Error::ByteOrderError)?,
+            ))
         }),
         TagType::Int => reader.advance(4).and_then(|mut v| {
-            Ok(Tag::Int(try!(v
-                .read_i32::<BigEndian>()
-                .map_err(Error::ByteOrderError))))
+            Ok(Tag::Int(
+                v.read_i32::<BigEndian>().map_err(Error::ByteOrderError)?,
+            ))
         }),
         TagType::Long => reader.advance(8).and_then(|mut v| {
-            Ok(Tag::Long(try!(v
-                .read_i64::<BigEndian>()
-                .map_err(Error::ByteOrderError))))
+            Ok(Tag::Long(
+                v.read_i64::<BigEndian>().map_err(Error::ByteOrderError)?,
+            ))
         }),
         TagType::Float => reader.advance(4).and_then(|mut v| {
-            Ok(Tag::Float(try!(v
-                .read_f32::<BigEndian>()
-                .map_err(Error::ByteOrderError))))
+            Ok(Tag::Float(
+                v.read_f32::<BigEndian>().map_err(Error::ByteOrderError)?,
+            ))
         }),
         TagType::Double => reader.advance(8).and_then(|mut v| {
-            Ok(Tag::Double(try!(v
-                .read_f64::<BigEndian>()
-                .map_err(Error::ByteOrderError))))
+            Ok(Tag::Double(
+                v.read_f64::<BigEndian>().map_err(Error::ByteOrderError)?,
+            ))
         }),
         TagType::ByteArray => {
             let len = {
                 let arr = reader.advance(4);
-                try!(arr.and_then(|mut v| v.read_u32::<BigEndian>().map_err(Error::ByteOrderError)))
+                arr.and_then(|mut v| v.read_u32::<BigEndian>().map_err(Error::ByteOrderError))?
             };
-            Ok(Tag::ByteArray(try!(reader.advance(len as usize))))
+            Ok(Tag::ByteArray(reader.advance(len as usize)?))
         }
         TagType::String => {
             let len = {
                 let arr = reader.advance(2);
-                try!(arr.and_then(|mut v| v.read_u16::<BigEndian>().map_err(Error::ByteOrderError)))
+                arr.and_then(|mut v| v.read_u16::<BigEndian>().map_err(Error::ByteOrderError))?
             };
-            Ok(Tag::String(try!(reader
-                .advance(len as usize)
-                .and_then(|v| from_utf8(v).map_err(Error::Utf8Error)))))
+            Ok(Tag::String(
+                reader
+                    .advance(len as usize)
+                    .and_then(|v| from_utf8(v).map_err(Error::Utf8Error))?,
+            ))
         }
         TagType::List => {
             let mut list = vec![];
-            let tag = try!(reader
+            let tag = reader
                 .advance(1)
-                .and_then(|v| TagType::from_raw(v[0]).ok_or(Error::UnknownTag)));
-            let len = try!(reader
+                .and_then(|v| TagType::from_raw(v[0]).ok_or(Error::UnknownTag))?;
+            let len = reader
                 .advance(4)
-                .and_then(|mut v| v.read_u32::<BigEndian>().map_err(Error::ByteOrderError)));
+                .and_then(|mut v| v.read_u32::<BigEndian>().map_err(Error::ByteOrderError))?;
             list.reserve(len as usize);
             for _ in 0..len {
-                list.push(try!(decode_value(tag, reader)));
+                list.push(decode_value(tag, reader)?);
             }
             Ok(Tag::List(list))
         }
@@ -324,29 +326,27 @@ fn decode_value<'a>(tag: TagType, reader: &mut Reader<'a>) -> Result<Tag<'a>, Er
         TagType::IntArray => {
             let len = {
                 let arr = reader.advance(4);
-                try!(arr.and_then(|mut v| v.read_u32::<BigEndian>().map_err(Error::ByteOrderError)))
+                arr.and_then(|mut v| v.read_u32::<BigEndian>().map_err(Error::ByteOrderError))?
             };
-            Ok(Tag::IntArray(IntArray(try!(
-                reader.advance(len as usize * 4)
-            ))))
+            Ok(Tag::IntArray(IntArray(reader.advance(len as usize * 4)?)))
         }
     }
 }
 
 fn decode_full<'a>(reader: &mut Reader<'a>) -> Result<Option<(&'a str, Tag<'a>)>, Error> {
-    let tag = try!(reader
+    let tag = reader
         .advance(1)
-        .and_then(|v| TagType::from_raw(v[0]).ok_or(Error::UnknownTag)));
+        .and_then(|v| TagType::from_raw(v[0]).ok_or(Error::UnknownTag))?;
     if tag == TagType::End {
         return Ok(None);
     }
-    let name_len = try!(reader
+    let name_len = reader
         .advance(2)
-        .and_then(|mut v| v.read_u16::<BigEndian>().map_err(Error::ByteOrderError)));
-    let name = try!(reader
+        .and_then(|mut v| v.read_u16::<BigEndian>().map_err(Error::ByteOrderError))?;
+    let name = reader
         .advance(name_len as usize)
-        .and_then(|v| from_utf8(v).map_err(Error::Utf8Error)));
-    Ok(Some((name, try!(decode_value(tag, reader)))))
+        .and_then(|v| from_utf8(v).map_err(Error::Utf8Error))?;
+    Ok(Some((name, decode_value(tag, reader)?)))
 }
 
 /// Decode a buffer into an NBT tag tree.
