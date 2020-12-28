@@ -10,6 +10,7 @@
 use crate::TagType;
 use byteorder::{BigEndian, ByteOrder};
 use flate2::read::GzDecoder;
+use std::fmt;
 use std::io::Error as IoError;
 use std::io::Read;
 
@@ -30,6 +31,7 @@ pub use string::NbtString;
 
 /// Failures which can occur while parsing an NBT document.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ParseError {
     /// End of file happens when the document is truncated, i.e. we were
     /// expecting some data to follow after something, and then the file
@@ -61,8 +63,29 @@ pub enum ParseError {
     /// This library assumes that NBT documents always have a root
     /// TAG_Compound, and if this invariant fails this error will be
     /// generated.
-    IncorrectStartTag { tag: u8 },
+    IncorrectStartTag { tag: TagType },
 }
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ParseError::EOF => write!(fmt, "Unexpected end of file"),
+            ParseError::UnknownTag { tag, offset } => {
+                write!(fmt, "Unknown tag {} at offset {:#x}", tag, offset)
+            }
+            ParseError::UnexpectedEndTag => write!(fmt, "Unexpected end tag in document"),
+            ParseError::IncorrectStartTag { tag } => {
+                write!(
+                    fmt,
+                    "Document starts with tag {:?}, it should only start with Compound.",
+                    tag
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for ParseError {}
 
 /// Representation for all values that a tag can be.
 #[derive(Clone, Debug)]
@@ -177,7 +200,7 @@ impl Document {
         let mut reader = Reader::new(&self.data);
         let tag = read_type(&mut reader)?;
         if tag != TagType::Compound {
-            return Err(ParseError::IncorrectStartTag { tag: tag as u8 });
+            return Err(ParseError::IncorrectStartTag { tag });
         }
         let name = NbtString::read(&mut reader)?;
         let root = Compound::read(&mut reader)?;
