@@ -6,6 +6,12 @@ use std::fmt;
 /// Common representation for TAG_Int_Array, TAG_Long_Array, and
 /// TAG_List with elements of fixed size (Byte, Short, Int, Long, Float,
 /// Double).
+///
+/// # Notes
+///
+/// It's not possible to implement Index on this type, because it can't
+/// return a reference to the elements. This means that `array[i]`
+/// doesn't work, and [NbtArray::get] needs to be used instead.
 #[derive(Clone, Copy)]
 pub struct NbtArray<'a, T> {
     data: &'a [u8],
@@ -65,6 +71,11 @@ where
         self.data.len() / T::SIZE
     }
 
+    /// Returns true if there are no elements in the array.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns an element at the index if it's in the range 0..len(),
     /// or None.
     pub fn get(&self, index: usize) -> Option<T> {
@@ -122,6 +133,43 @@ where
         let result = self.array.get(self.index);
         self.index += 1;
         result
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+}
+
+impl<'a, T> ExactSizeIterator for NbtArrayIter<'a, T>
+where
+    T: NbtPrimitive,
+{
+    fn len(&self) -> usize {
+        let len = self.array.len();
+        if self.index < len {
+            len - self.index
+        } else {
+            0
+        }
+    }
+}
+
+impl<'a, T> PartialEq for NbtArray<'a, T>
+where
+    T: NbtPrimitive + PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            false
+        } else {
+            for i in 0..self.len() {
+                if self.get(i) != other.get(i) {
+                    return false;
+                }
+            }
+            true
+        }
     }
 }
 

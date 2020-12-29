@@ -4,7 +4,7 @@ use std::io::Read;
 
 fn main() {
     // Load the file to parse. Document::load takes any implementation of Read.
-    let mut file = File::open("tests/files/hello_world.nbt").expect("File to exist");
+    let mut file = File::open("files/hello_world.nbt").expect("File to exist");
     let mut data = vec![];
     file.read_to_end(&mut data).expect("Read to succeed");
     let cursor = std::io::Cursor::new(data);

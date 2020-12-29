@@ -14,7 +14,7 @@ fn test_hello() {
     root.finish();
 
     let result = writer.finish();
-    let expected = include_bytes!("files/hello_world.nbt");
+    let expected = include_bytes!("../files/hello_world.nbt");
     assert_eq!(result, expected);
 }
 
@@ -85,7 +85,7 @@ fn test_bigtest() {
     root.finish();
     let result = writer.finish();
 
-    let cursor = std::io::Cursor::new(include_bytes!("files/bigtest.nbt"));
+    let cursor = std::io::Cursor::new(include_bytes!("../files/bigtest.nbt"));
     let mut decoder = GzDecoder::new(cursor);
     let mut expected = vec![];
     decoder.read_to_end(&mut expected).unwrap();

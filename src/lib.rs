@@ -7,7 +7,11 @@
 //! The encoder is builder-based and does not take in any kind of
 //! document structure.
 
+#![doc(html_root_url = "https://docs.rs/nobility/0.2.0")]
+
+/// Contains the implementation of the binary format decoder.
 pub mod bin_decode;
+/// Contains the implementation of the binary format encoder.
 pub mod bin_encode;
 
 /// NBT tags are a 1-byte value used to specify which type is going to
@@ -18,7 +22,8 @@ pub mod bin_encode;
 /// Tags are sequentially allocated. As of writing (2020), the most
 /// recent tag is `TAG_Long_Array`, added in Minecraft 1.12.
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum TagType {
     /// Used to mark the end of a Compound tag. `TAG_End`, ID 0.
     End = 0,

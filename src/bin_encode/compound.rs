@@ -4,10 +4,30 @@ use crate::TagType;
 /// A builder for a TAG_Compound, allowing fields to be added
 /// sequentially.
 ///
+/// # Example
+///
+/// ```rust
+/// # use nobility::bin_encode::NbtWriter;
+/// # let mut writer = NbtWriter::new();
+/// # let some_compound = writer.root("test");
+/// let mut compound = some_compound;
+/// compound.field("Name").string("Alice");
+///
+/// let mut pos = compound.compound_field("Position");
+/// pos.field("X").int(34);
+/// pos.field("Y").int(12);
+/// pos.finish();
+///
+/// // finish() call is required.
+/// compound.finish();
+/// # let _ = writer.finish();
+/// ```
+///
 /// # Panics
 ///
 /// This object will panic on drop if finish() is not called. Otherwise,
 /// an invalid NBT document would be generated.
+#[derive(Debug)]
 pub struct CompoundWriter<'a> {
     writer: &'a mut NbtWriter,
     done: bool,

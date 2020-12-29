@@ -1,7 +1,27 @@
 use crate::bin_encode::{CompoundListWriter, CompoundWriter, NbtWriter};
 use crate::TagType;
+use byteorder::{BigEndian, ByteOrder};
 
-/// A builder for creating NBT tags.
+/// A builder for creating NBT tags. This is created using [CompoundWriter::field].
+///
+/// # Example
+///
+/// ```rust
+/// # use nobility::bin_encode::NbtWriter;
+/// # let mut writer = NbtWriter::new();
+/// # let mut player = writer.root("test");
+/// player.field("Name").string("Tiffany");
+/// player.field("Health").int(20);
+///
+/// // There is no bool type in NBT, so bytes 0 and 1 are used instead.
+/// player.field("EnjoysWritingDocumentation").byte(1);
+///
+/// player.field("FavoriteNumbers").float_list(&[3.14159, 7.0, 2147483647.0]);
+///
+/// # player.finish();
+/// # let _ = writer.finish();
+/// ```
+#[derive(Debug)]
 pub struct TagWriter<'a> {
     writer: &'a mut NbtWriter,
     name: Option<&'a str>,
@@ -194,6 +214,24 @@ impl<'a> TagWriter<'a> {
     pub fn compound_list(&'a mut self) -> CompoundListWriter<'a> {
         self.header(TagType::List);
         CompoundListWriter::new(self.writer)
+    }
+
+    /// Writes the bytes of a UUID in the Minecraft 1.16+ format
+    /// (TAG_Int_Array of length 4).
+    pub fn uuid_bytes(&mut self, bytes: [u8; 16]) {
+        self.int_array(&[
+            BigEndian::read_i32(&bytes[0..4]),
+            BigEndian::read_i32(&bytes[4..8]),
+            BigEndian::read_i32(&bytes[8..12]),
+            BigEndian::read_i32(&bytes[12..16]),
+        ]);
+    }
+
+    /// Writes a [uuid::Uuid] in the Minecraft 1.16+ format
+    /// (TAG_Int_Array of length 4). Requires the `uuid` feature.
+    #[cfg(feature = "uuid")]
+    pub fn uuid(&mut self, uuid: uuid::Uuid) {
+        self.uuid_bytes(*uuid.as_bytes());
     }
 
     // todo: list list, compound list, int array list, long array list

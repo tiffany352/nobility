@@ -1,18 +1,19 @@
 use crate::bin_decode::{NbtParse, ParseError, Reader};
 use byteorder::{BigEndian, ByteOrder};
 use cesu8::{from_java_cesu8, Cesu8DecodingError};
+use core::ops::Deref;
 use std::borrow::Cow;
 use std::fmt;
 
 /// NBT stores strings in Java's modified version of [CESU-8][2] called
-/// ["Modified UTF-8"][1]. As a result, documents can't be decoded into
-/// &str references in all cases. This type stores a reference to a
-/// potentially invalid string in this format.
+/// ["Modified UTF-8"][1]. This type stores a reference to the raw data
+/// in the file, and [NbtString::decode] can be used to convert it to a
+/// string.
 ///
 /// [1]:
 /// https://docs.oracle.com/javase/8/docs/api/java/io/DataInput.html#modified-utf-8
 /// [2]: https://en.wikipedia.org/wiki/CESU-8
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct NbtString<'a> {
     data: &'a [u8],
 }
@@ -26,11 +27,21 @@ impl<'a> NbtParse<'a> for NbtString<'a> {
 }
 
 impl<'a> NbtString<'a> {
-    /// Attempts to parse the string into UTF-8 using the cesu8 crate.
+    /// Internal function for unit tests.
+    #[doc(hidden)]
+    pub fn new(data: &'a [u8]) -> NbtString<'a> {
+        NbtString { data }
+    }
+
+    /// Attempts to parse the string into UTF-8 using the [cesu8] crate.
     /// An error will be returned if this fails, which should only
     /// happen if the data contained is invalid CESU-8.
     pub fn decode(&self) -> Result<Cow<str>, Cesu8DecodingError> {
         from_java_cesu8(self.data)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data
     }
 }
 
@@ -47,12 +58,28 @@ where
     }
 }
 
+impl<'a> Deref for NbtString<'a> {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
 impl<'a> fmt::Debug for NbtString<'a> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if let Ok(result) = self.decode() {
-            write!(fmt, "NbtString({:?})", result)
+            fmt::Debug::fmt(&result, fmt)
         } else {
-            write!(fmt, "NbtString({:?})", self.data)
+            write!(fmt, "\"")?;
+            for ch in self.data {
+                match ch {
+                    0 => write!(fmt, r"\0")?,
+                    1..=0x7F => write!(fmt, "{}", (*ch as char).escape_default())?,
+                    0x80..=0xFF => write!(fmt, r"\x{:02X}", ch)?,
+                }
+            }
+            write!(fmt, "\"")
         }
     }
 }

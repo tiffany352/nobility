@@ -36,7 +36,7 @@ pub struct Reader<'a> {
 impl<'a> Reader<'a> {
     pub(crate) fn new(buffer: &'a [u8]) -> Reader<'a> {
         Reader {
-            buffer: buffer,
+            buffer,
             position: 0,
         }
     }

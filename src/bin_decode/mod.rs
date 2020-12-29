@@ -6,6 +6,34 @@
 //! original data buffer, rather than copying into a Vec. The main
 //! exception is bookkeeping where necessary, such as when parsing
 //! Compound tags.
+//!
+//! # Example
+//!
+//! ```rust
+//! # use std::error::Error;
+//! #
+//! # fn main() -> Result<(), Box<dyn Error>> {
+//! use nobility::bin_decode::Document;
+//! use std::fs::File;
+//! use std::io::Read;
+//!
+//! let mut file = File::open("files/hello_world.nbt")?;
+//! let mut data = vec![];
+//! file.read_to_end(&mut data)?;
+//! let cursor = std::io::Cursor::new(data);
+//!
+//! // Either copies the data (plaintext) or decompresses it (gzip).
+//! let doc = Document::load(cursor)?;
+//!
+//! // Returns the root tag's name, and the root tag (always a Compound tag).
+//! // Both of these are borrowing the data inside the Document.
+//! let (name, root) = doc.parse()?;
+//! println!("name: {}", name.decode()?);
+//! println!("{:#?}", root);
+//! #
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::TagType;
 use byteorder::{BigEndian, ByteOrder};
@@ -88,7 +116,8 @@ impl fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 /// Representation for all values that a tag can be.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Tag<'a> {
     /// A small i8 integer.
     Byte(i8),
@@ -137,6 +166,24 @@ impl<'a> Tag<'a> {
         }
     }
 
+    /// Returns the type that represents this tag.
+    pub fn tag_type(&self) -> TagType {
+        match self {
+            Tag::Byte(_) => TagType::Byte,
+            Tag::Short(_) => TagType::Short,
+            Tag::Int(_) => TagType::Int,
+            Tag::Long(_) => TagType::Long,
+            Tag::Float(_) => TagType::Float,
+            Tag::Double(_) => TagType::Double,
+            Tag::ByteArray(_) => TagType::ByteArray,
+            Tag::String(_) => TagType::String,
+            Tag::List(_) => TagType::List,
+            Tag::Compound(_) => TagType::Compound,
+            Tag::IntArray(_) => TagType::IntArray,
+            Tag::LongArray(_) => TagType::LongArray,
+        }
+    }
+
     /// If this tag is a string, returns it. Otherwise, returns None. No coercion is performed.
     pub fn as_string(&self) -> Option<NbtString<'a>> {
         if let Tag::String(value) = self {
@@ -144,6 +191,97 @@ impl<'a> Tag<'a> {
         } else {
             None
         }
+    }
+
+    /// If this tag is a byte array, returns it. Otherwise, returns None.
+    pub fn as_byte_array(&self) -> Option<&[u8]> {
+        if let Tag::ByteArray(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    /// If this tag is a [Compound], returns it. Otherwise, returns None.
+    pub fn as_compound(&self) -> Option<&Compound<'a>> {
+        if let Tag::Compound(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    /// If this tag is a [List], returns it. Otherwise, returns None.
+    pub fn as_list(&self) -> Option<&List<'a>> {
+        if let Tag::List(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    /// Attempts to coerce the tag to an integer. Byte, Short, Int, and
+    /// Long will return a value, other tags will return None.
+    pub fn to_i64(&self) -> Option<i64> {
+        match *self {
+            Tag::Byte(value) => Some(value as i64),
+            Tag::Short(value) => Some(value as i64),
+            Tag::Int(value) => Some(value as i64),
+            Tag::Long(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Attempts to coerce the tag to a f64. Byte, Short, Int, Long,
+    /// Float, and Double will return a value, other tags will return
+    /// None.
+    pub fn to_f64(&self) -> Option<f64> {
+        match *self {
+            Tag::Byte(value) => Some(value as f64),
+            Tag::Short(value) => Some(value as f64),
+            Tag::Int(value) => Some(value as f64),
+            Tag::Long(value) => Some(value as f64),
+            Tag::Float(value) => Some(value as f64),
+            Tag::Double(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Attempts to coerce the tag to a f32. Byte, Short, Int, Long,
+    /// Float, and Double will return a value, other tags will return
+    /// None.
+    pub fn to_f32(&self) -> Option<f32> {
+        match *self {
+            Tag::Byte(value) => Some(value as f32),
+            Tag::Short(value) => Some(value as f32),
+            Tag::Int(value) => Some(value as f32),
+            Tag::Long(value) => Some(value as f32),
+            Tag::Float(value) => Some(value),
+            Tag::Double(value) => Some(value as f32),
+            _ => None,
+        }
+    }
+
+    /// If the tag is in the 1.16+ UUID format (IntArray of length 4),
+    /// returns it as big endian bytes. Otherwise, returns None.
+    pub fn to_uuid_bytes(&self) -> Option<[u8; 16]> {
+        if let Tag::IntArray(array) = self {
+            if array.len() == 4 {
+                let mut buf = [0; 16];
+                BigEndian::write_i32(&mut buf[0..4], array.get(0).unwrap());
+                BigEndian::write_i32(&mut buf[4..8], array.get(1).unwrap());
+                BigEndian::write_i32(&mut buf[8..12], array.get(2).unwrap());
+                BigEndian::write_i32(&mut buf[12..16], array.get(3).unwrap());
+                return Some(buf);
+            }
+        }
+        None
+    }
+
+    /// Similar to [Tag::to_uuid_bytes], but returns a [uuid::Uuid]. Requires the `uuid` feature.
+    #[cfg(feature = "uuid")]
+    pub fn to_uuid(&self) -> Option<uuid::Uuid> {
+        self.to_uuid_bytes().map(uuid::Uuid::from_bytes)
     }
 }
 
@@ -174,14 +312,52 @@ fn read_byte_array<'a>(reader: &mut Reader<'a>) -> Result<&'a [u8], ParseError> 
 
 /// Represents an NBT document and is the owner of the data contained in
 /// it. All other decoder types are borrows of the data stored in this.
+///
+/// # Example
+///
+/// ```rust
+/// # use std::error::Error;
+/// #
+/// # fn main() -> Result<(), Box<dyn Error>> {
+/// use nobility::bin_decode::Document;
+/// # let input = Document::doctest_demo();
+///
+/// // Either copies the data (plaintext) or decompresses it (gzip). Accepts
+/// // any implementation of Read.
+/// let doc = Document::load(input)?;
+///
+/// // Returns the root tag's name, and the root tag (always a Compound tag).
+/// // Both of these are borrowing the data inside the Document.
+/// let (name, root) = doc.parse()?;
+/// # let _ = (name, root);
+/// # Ok(())
+/// # }
+/// ```
+
+#[derive(Clone, PartialEq)]
 pub struct Document {
     data: Vec<u8>,
 }
 
 impl Document {
+    #[doc(hidden)]
+    pub fn doctest_demo() -> impl Read + Clone {
+        use std::fs::File;
+
+        let mut file = File::open("files/hello_world.nbt").expect("File should exist");
+        let mut data = vec![];
+        file.read_to_end(&mut data).unwrap();
+        std::io::Cursor::new(data)
+    }
+
     /// Loads a document from any source implementing Read. Sources that
     /// are compressed with gzip will be automatically decompressed,
     /// otherwise the data will just be copied.
+    ///
+    /// # Errors
+    ///
+    /// Errors from this function are either from the input [Read]
+    /// object or from [GzDecoder].
     pub fn load<R: Read + Clone>(mut input: R) -> Result<Document, IoError> {
         let mut decoder = GzDecoder::new(input.clone());
         let mut data = vec![];
@@ -195,8 +371,24 @@ impl Document {
         Ok(Document { data })
     }
 
-    /// Parses the document and returns the name and contents of the root tag.
-    pub fn parse<'a>(&'a self) -> Result<(NbtString<'a>, Compound<'a>), ParseError> {
+    /// Parses the document and returns the name and contents of the
+    /// root tag.
+    ///
+    /// # Errors
+    ///
+    /// The only cases that this should return an error are:
+    ///
+    /// 1. The input is not an NBT document. This will likely generate
+    ///    [ParseError::IncorrectStartTag].
+    /// 2. The input is an NBT document, but is malformed/corrupted, or
+    ///    in the Bedrock edition version of the format.
+    /// 2. The document is compressed using something other than
+    ///    gzip. This will likely generate
+    ///    [ParseError::IncorrectStartTag].
+    /// 3. The specification has changed due to a new Minecraft version.
+    ///    This will likely generate [ParseError::UnknownTag].
+    /// 4. There's a bug in the parser.
+    pub fn parse(&self) -> Result<(NbtString, Compound), ParseError> {
         let mut reader = Reader::new(&self.data);
         let tag = read_type(&mut reader)?;
         if tag != TagType::Compound {
@@ -205,5 +397,11 @@ impl Document {
         let name = NbtString::read(&mut reader)?;
         let root = Compound::read(&mut reader)?;
         Ok((name, root))
+    }
+}
+
+impl fmt::Debug for Document {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "Document({} B buffer)", self.data.len() / 1000)
     }
 }

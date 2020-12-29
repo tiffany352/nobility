@@ -5,13 +5,12 @@ use crate::bin_decode::{
 };
 use crate::TagType;
 use byteorder::{BigEndian, ByteOrder};
-use core::ops::Deref;
 use core::ops::Index;
 use core::slice::Iter as SliceIter;
 use std::fmt;
 
 /// Implementation for lists whose elements do not have a fixed size.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct NbtList<T> {
     entries: Vec<T>,
 }
@@ -37,6 +36,11 @@ impl<T> NbtList<T> {
         self.entries.len()
     }
 
+    /// Returns true if there are no elements in the list.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// If len() > index >= 0, returns Some, otherwise returns None.
     pub fn get(&self, index: usize) -> Option<&T> {
         self.entries.get(index)
@@ -51,13 +55,9 @@ impl<T> NbtList<T> {
     pub fn iter(&self) -> SliceIter<T> {
         self.entries.iter()
     }
-}
 
-impl<T> Deref for NbtList<T> {
-    type Target = [T];
-
-    fn deref(&self) -> &Self::Target {
-        &self.entries
+    pub fn as_slice(&self) -> &[T] {
+        &self.entries[..]
     }
 }
 
@@ -108,7 +108,8 @@ pub type FloatList<'a> = NbtArray<'a, f32>;
 pub type DoubleList<'a> = NbtArray<'a, f64>;
 
 /// An enum that represents all possible list types.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum List<'a> {
     Byte(&'a [u8]),
     Short(ShortList<'a>),
@@ -175,11 +176,18 @@ impl<'a> List<'a> {
         }
     }
 
+    /// Returns true if there are no elements in the list.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Allows the list to be indexed without creating a case for each
     /// possible list type. The return value is wrapped in a Tag.
     ///
-    /// Note that for complex lists, a clone will be performed. This
-    /// happens for Compound, Int Array, and Long Array lists.
+    /// # Notes
+    ///
+    /// CompoundList and ListList will both result in a clone being
+    /// performed.
     pub fn get(&self, index: usize) -> Option<Tag<'a>> {
         match self {
             List::Byte(list) => list.get(index).map(|&v| Tag::Byte(v as i8)),
@@ -192,8 +200,8 @@ impl<'a> List<'a> {
             List::String(list) => list.get(index).map(|v| Tag::String(*v)),
             List::Compound(list) => list.get(index).map(|v| Tag::Compound(v.clone())),
             List::List(list) => list.get(index).map(|v| Tag::List(v.clone())),
-            List::IntArray(list) => list.get(index).map(|v| Tag::IntArray(v.clone())),
-            List::LongArray(list) => list.get(index).map(|v| Tag::LongArray(v.clone())),
+            List::IntArray(list) => list.get(index).map(|v| Tag::IntArray(*v)),
+            List::LongArray(list) => list.get(index).map(|v| Tag::LongArray(*v)),
         }
     }
 
@@ -219,5 +227,21 @@ impl<'a> Iterator for ListIter<'a> {
         let result = self.list.get(self.index);
         self.index += 1;
         result
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+}
+
+impl<'a> ExactSizeIterator for ListIter<'a> {
+    fn len(&self) -> usize {
+        let len = self.list.len();
+        if self.index < len {
+            len - self.index
+        } else {
+            0
+        }
     }
 }

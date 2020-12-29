@@ -27,20 +27,20 @@ Missing features:
 ## Decoding
 
 ```rust
-let mut file = File::open("hello_world.nbt").unwrap();
+let mut file = File::open("hello_world.nbt")?;
 let mut data = vec![];
-file.read_to_end(&mut data).unwrap();
+file.read_to_end(&mut data)?;
 let cursor = std::io::Cursor::new(data);
 
 // Load the document. This step either copies the data (plaintext)
 // or decompresses it (gzip).
-let doc = Document::load(cursor).unwrap();
+let doc = Document::load(cursor)?;
 // Parses the document. This returns the root tag's name, and the
 // root tag (always a Compound tag). Both of these are borrowing the
 // data inside the Document.
-let (name, root) = doc.parse().unwrap();
+let (name, root) = doc.parse()?;
 
-println!("name: {}", name.decode().unwrap());
+println!("name: {}", name.decode()?);
 println!("{:#?}", root);
 ```
 

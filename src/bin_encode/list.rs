@@ -4,9 +4,42 @@ use byteorder::{BigEndian, ByteOrder};
 
 /// A builder for a TAG_List of [TAG_Compounds][CompoundWriter].
 ///
+/// # Example
+///
+/// ```rust
+/// # use nobility::bin_encode::NbtWriter;
+/// # let mut writer = NbtWriter::new();
+/// # {
+/// # let some_compound = writer.root("test");
+/// let mut player = some_compound;
+/// let mut list = player.compound_list_field("Friends");
+///
+/// {
+///     let mut element = list.element();
+///     element.field("Name").string("Alice");
+///     element.field("Level").int(20);
+///     element.finish();
+/// }
+///
+/// {
+///     let mut element = list.element();
+///     element.field("Name").string("Steve");
+///     element.field("Level").int(17);
+///     element.finish();
+/// }
+///
+/// // finish() call is required.
+/// list.finish();
+///
+/// # player.finish();
+/// # }
+/// # let _ = writer.finish();
+/// ```
+///
 /// # Panics
 ///
 /// This object will panic on drop if finish() is not called.
+#[derive(Debug)]
 pub struct CompoundListWriter<'a> {
     writer: &'a mut NbtWriter,
     start_offset: usize,
@@ -30,7 +63,7 @@ impl<'a> CompoundListWriter<'a> {
     /// Start a new element in the list, returning a CompoundWriter to
     /// build it. `finish` must be called on the builder before
     /// additional elements can be added.
-    pub fn element<'b>(&'b mut self) -> CompoundWriter<'b> {
+    pub fn element(&mut self) -> CompoundWriter {
         self.length += 1;
         CompoundWriter::new(self.writer)
     }
